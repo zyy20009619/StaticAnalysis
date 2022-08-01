@@ -2,6 +2,7 @@ package com.zyy.demo.services.impl;
 
 import com.zyy.demo.entities.FilePair;
 import com.zyy.demo.services.IAnalysisComtFile;
+import com.zyy.demo.utils.FileUtil;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -9,16 +10,13 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 @Service
-public class AnalysisComtImpl implements IAnalysisComtFile{
-    private Map<String, List<String>> fileChange = new HashMap<String, List<String>>();
-    private List<String> fileList = new ArrayList<>();
-    private List<String> MoreFileCommit = new ArrayList<String>();
-    private List<FilePair> cochanges = new ArrayList<FilePair>();
-    // 阈值，暂设为共同出现2次就算是coChange
-    int Threshold = 2;
+public class AnalysisComtImpl implements IAnalysisComtFile {
+    public static List<FilePair> cochanges = new ArrayList<FilePair>();
+    // 阈值，暂设为1，考虑到有的项目比较小
+    int Threshold = 1;
 
     public void analysisComtFile(String basepath) {
-        // 对从git上取下来的文件先做初次处理
+        // 对从git上取下来的文件先做预处理
         firstHandle(basepath);
         // 从处理完的文件中提取共变信息
         getCoChangeMessage(basepath);
@@ -96,32 +94,25 @@ public class AnalysisComtImpl implements IAnalysisComtFile{
 
 
     private void getCoChangeMessage(String basepath) {
-        String fileChangePath = basepath + File.separator + "fileChange.csv";
-        String coChangePath = basepath + File.separator + "cochange.csv";
+        cochanges.clear();
+        Map<String, List<String>> fileChange = new HashMap<String, List<String>>();
+        List<String> fileList = new ArrayList<>();
+        String coChangePath = basepath + File.separator + "cmt.csv";
         String masterIndexPath = basepath + File.separator + "masterIndex.txt";
 
-        getMoreFileList(masterIndexPath);
-        handleHistory(masterIndexPath);
-        handelSameCommit();
-        findCoChanges();
-
-        // 将结果读入fileChange.csv中
-
-        // 将结果读入cochange.csv中
-        File coChangeFile = new File(coChangePath);
-        try {
-            coChangeFile.createNewFile();
-            FileWriter fileWriter = new FileWriter(coChangeFile);
-            for (FilePair filePair : cochanges) {
-                fileWriter.write(filePair.getFile1() + "," + filePair.getFile2() + "," + filePair.getCount() + "\n");
-            }
-            fileWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // 获取一次commit中超过10个文件提交的id（因为很多项目比较小，更新频次也不是很多，所以就暂时不删除超过10的提交id）
+        List<String> MoreFileCommit = new ArrayList<String>();
+//        getMoreFileList(masterIndexPath, MoreFileCommit);
+        // 获取所有添加的文件路径以及其出现的commit的id
+        handleHistory(masterIndexPath, fileChange, fileList);
+        // 删除cochange中的出现的重复id和超过10个文件的id
+        Map<String, List<String>> commit = handelSameCommit(MoreFileCommit, fileChange);
+        findCoChanges(commit, fileList);
+        // 将结果读入cmt.csv中
+        FileUtil.writeToCSV(basepath, "cmt");
     }
 
-    private void getMoreFileList(String masterIndexPath) {
+    private void getMoreFileList(String masterIndexPath, List<String> MoreFileCommit) {
         Pattern pattern1 = Pattern.compile("(^commit)");
         Pattern pattern2 = Pattern.compile("(^M)|(^R)|(^A)|(^D)");
         String beforecommit = "";
@@ -159,7 +150,7 @@ public class AnalysisComtImpl implements IAnalysisComtFile{
         }
     }
 
-    private void handleHistory(String masterIndexPath) {
+    private void handleHistory(String masterIndexPath, Map<String, List<String>> fileChange, List<String> fileList) {
         int delFileNum = 0;
 
         Pattern pattern1 = Pattern.compile("(^commit)");
@@ -246,29 +237,34 @@ public class AnalysisComtImpl implements IAnalysisComtFile{
         }
     }
 
-    private void handelSameCommit() {
-        for (Map.Entry<String, List<String>> entry: fileChange.entrySet()) {
-            List<String> commitList = entry.getValue();
-            for (String commit: MoreFileCommit) {
-                commitList.remove(commit);
+    private Map<String, List<String>> handelSameCommit(List<String> MoreFileCommit, Map<String, List<String>> fileChange) {
+        Map<String, List<String>> tempcommit = new HashMap<String, List<String>>();
+        for (Map.Entry<String, List<String>> entry : fileChange.entrySet()) {
+            List<String> commitList = new ArrayList<String>();
+            for (String comit : entry.getValue()) {
+                if (!commitList.contains(comit) && !MoreFileCommit.contains(comit)) {
+                    commitList.add(comit);
+                }
             }
+            tempcommit.put(entry.getKey(), commitList);
         }
+        return tempcommit;
     }
 
-    private void findCoChanges() {
-        for(int i = 0; i < fileList.size(); i++){
-            List<String> commitList1 = fileChange.get(fileList.get(i));
-            for(int j = i + 1; j < fileList.size(); j++) {
-                List<String> commitList2 = fileChange.get(fileList.get(j));
+    private void findCoChanges(Map<String, List<String>> commit, List<String> fileList) {
+        for (int i = 0; i < fileList.size(); i++) {
+            List<String> commitList1 = commit.get(fileList.get(i));
+            for (int j = i + 1; j < fileList.size(); j++) {
+                List<String> commitList2 = commit.get(fileList.get(j));
                 int count = 0;
-                for (String commit1: commitList1) {
-                    for (String commit2: commitList2){
+                for (String commit1 : commitList1) {
+                    for (String commit2 : commitList2) {
                         if (commit1.equals(commit2)) {
                             count++;
                         }
                     }
                 }
-                if (count > Threshold) {
+                if (count >= Threshold) {
                     cochanges.add(new FilePair(fileList.get(i), fileList.get(j), String.valueOf(count)));
                 }
             }

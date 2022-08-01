@@ -22,23 +22,32 @@ public class ClassVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(TypeDeclaration node) {
-        System.out.println("Class:\t" + node.getName());
-        return super.visit(node);
+        System.out.println(node.getName());
+        if (judgeType(node)) {
+            SingelCollect.setClassname(SingelCollect.getPackagename() + "." + node.getName().toString());
+            return super.visit(node);
+        }
+        return false;
+    }
+
+    private boolean judgeType(TypeDeclaration node) {
+        return (SingelCollect.getFlag().equals("sc") && !node.isInterface())|| SingelCollect.getFlag().equals("controller") ||  SingelCollect.getFlag().equals("servlet") || SingelCollect.getFlag().equals("resource") ||SingelCollect.getFlag().equals("endpoint") || SingelCollect.getFlag().equals("rest")|| (SingelCollect.getFlag().equals("interface") && node.isInterface());
     }
 
     @Override
     public boolean visit(PackageDeclaration node) {
         System.out.println("PackageDeclaration:\t" + node.getName());
+        SingelCollect.setPackagename(node.getName().toString());
         SingelCollect.getIdentifierListOneFile().add(node.getName().toString());
         return super.visit(node);
     }
-
-    @Override
-    public boolean visit(ImportDeclaration node) {
-        System.out.println("ImportDeclaration:\t" + node.getName());
-        SingelCollect.getIdentifierListOneFile().add(node.getName().toString());
-        return super.visit(node);
-    }
+//
+//    @Override
+//    public boolean visit(ImportDeclaration node) {
+//        System.out.println("ImportDeclaration:\t" + node.getName());
+//        SingelCollect.getIdentifierListOneFile().add(node.getName().toString());
+//        return super.visit(node);
+//    }
 
 //    @Override
 //    public boolean visit(VariableDeclarationStatement node) {
@@ -46,23 +55,23 @@ public class ClassVisitor extends ASTVisitor {
 //        return super.visit(node);
 //    }
 
-    @Override
-    public boolean visit(FieldDeclaration node) {
-        node.fragments().forEach(fragment -> {
-            SingelCollect.getIdentifierListOneFile().add(fragment.toString());
-        });
-        return super.visit(node);
-    }
-
-    @Override
-    public boolean visit(SingleVariableDeclaration node) {
-        SingelCollect.getIdentifierListOneFile().add(node.getName().getFullyQualifiedName());
-//        System.out.println("SingleVariableDeclaration:\t" + node.getName().getFullyQualifiedName());
-        return super.visit(node);
-    }
-
-    public boolean visit(ReturnStatement node){
-        System.out.println("ReturnStatement:\t" + node.getExpression());
-        return super.visit(node);
-    }
+//    @Override
+//    public boolean visit(FieldDeclaration node) {
+//        node.fragments().forEach(fragment -> {
+//            SingelCollect.getIdentifierListOneFile().add(fragment.toString());
+//        });
+//        return super.visit(node);
+//    }
+//
+//    @Override
+//    public boolean visit(SingleVariableDeclaration node) {
+//        SingelCollect.getIdentifierListOneFile().add(node.getName().getFullyQualifiedName());
+////        System.out.println("SingleVariableDeclaration:\t" + node.getName().getFullyQualifiedName());
+//        return super.visit(node);
+//    }
+//
+//    public boolean visit(ReturnStatement node){
+//        System.out.println("ReturnStatement:\t" + node.getExpression());
+//        return super.visit(node);
+//    }
 }
